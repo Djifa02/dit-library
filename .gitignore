@@ -1,0 +1,12 @@
+node_modules/
+.env
+!.env.example
+
+*.log
+data/loans_clean.csv
+services/recommendation/model/model.pkl
+__pycache__/
+*.pyc
+.DS_Store
+
+
