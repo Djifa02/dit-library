@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLoans, createLoan, returnLoan, getOverdueLoans } from '../services/loans.service';
+import { getAllLoans, createLoan, returnLoan } from '../services/loans.service';
 import { useApp } from '../context/AppContext';
+import LoanRow from '../components/Loans/LoanRow';
+import LoanForm from '../components/Loans/LoanForm';
 
 const LoansPage = () => {
   const [loans, setLoans] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('ALL');
-  const [form, setForm] = useState({ user_id: '', book_id: '' });
   const { notify } = useApp();
 
   useEffect(() => { fetchLoans(); }, []);
@@ -20,8 +21,7 @@ const LoansPage = () => {
     }
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
+  const handleCreate = async (form) => {
     try {
       await createLoan(form);
       notify('Emprunt cree avec succes');
@@ -45,8 +45,6 @@ const LoansPage = () => {
 
   const filtered = filter === 'ALL' ? loans : loans.filter(l => l.status === filter);
 
-  const statusColor = { ACTIVE: '#0f3460', RETURNED: '#4caf50', OVERDUE: '#f44336' };
-
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -55,7 +53,6 @@ const LoansPage = () => {
           {showForm ? 'Annuler' : 'Nouvel emprunt'}
         </button>
       </div>
-
       <div style={styles.filters}>
         {['ALL', 'ACTIVE', 'RETURNED', 'OVERDUE'].map(s => (
           <button
@@ -67,18 +64,7 @@ const LoansPage = () => {
           </button>
         ))}
       </div>
-
-      {showForm && (
-        <form onSubmit={handleCreate} style={styles.form}>
-          <h3>Nouvel Emprunt</h3>
-          <input style={styles.input} placeholder="ID Utilisateur" value={form.user_id}
-            onChange={e => setForm({ ...form, user_id: e.target.value })} required />
-          <input style={styles.input} placeholder="ID Livre" value={form.book_id}
-            onChange={e => setForm({ ...form, book_id: e.target.value })} required />
-          <button type="submit" style={styles.btn}>Confirmer</button>
-        </form>
-      )}
-
+      {showForm && <LoanForm onSubmit={handleCreate} onCancel={() => setShowForm(false)} />}
       <div style={styles.table}>
         <div style={styles.tableHeader}>
           <span>Utilisateur</span>
@@ -89,21 +75,7 @@ const LoansPage = () => {
           <span>Action</span>
         </div>
         {filtered.map(loan => (
-          <div key={loan.id} style={styles.tableRow}>
-            <span>{loan.first_name} {loan.last_name}</span>
-            <span>{loan.title}</span>
-            <span>{new Date(loan.loan_date).toLocaleDateString()}</span>
-            <span>{new Date(loan.due_date).toLocaleDateString()}</span>
-            <span style={{ color: statusColor[loan.status], fontWeight: 'bold' }}>{loan.status}</span>
-            <span>
-              {loan.status === 'ACTIVE' || loan.status === 'OVERDUE' ? (
-                <button style={{ ...styles.btn, padding: '0.3rem 0.8rem', fontSize: '0.85rem' }}
-                  onClick={() => handleReturn(loan.id)}>
-                  Retourner
-                </button>
-              ) : '-'}
-            </span>
-          </div>
+          <LoanRow key={loan.id} loan={loan} onReturn={handleReturn} />
         ))}
       </div>
     </div>
@@ -117,11 +89,8 @@ const styles = {
   filters: { display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' },
   filterBtn: { padding: '0.4rem 1rem', border: '1px solid #ddd', borderRadius: '20px', cursor: 'pointer', backgroundColor: '#fff' },
   filterActive: { backgroundColor: '#1a1a2e', color: '#fff', border: '1px solid #1a1a2e' },
-  form: { backgroundColor: '#f9f9f9', padding: '1.5rem', borderRadius: '8px', marginBottom: '1.5rem' },
-  input: { display: 'block', width: '100%', padding: '0.6rem', margin: '0.5rem 0', borderRadius: '6px', border: '1px solid #ddd' },
   table: { backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', overflow: 'hidden' },
   tableHeader: { display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr', padding: '1rem', backgroundColor: '#1a1a2e', color: '#fff', fontWeight: 'bold' },
-  tableRow: { display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr', padding: '1rem', borderBottom: '1px solid #eee', alignItems: 'center' },
 };
 
 export default LoansPage;
