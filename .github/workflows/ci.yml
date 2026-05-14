@@ -1,0 +1,76 @@
+name: CI/CD DIT Library
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: dituser
+          POSTGRES_PASSWORD: ditpass
+          POSTGRES_DB: ditlibrary
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker images
+        run: docker-compose --profile dev build
+
+      - name: Start services
+        run: docker-compose --profile dev up -d
+
+      - name: Wait for services to be ready
+        run: sleep 30
+
+      - name: Test Books service
+        run: curl -f http://localhost:3001/health
+
+      - name: Test Users service
+        run: curl -f http://localhost:3002/health
+
+      - name: Test Loans service
+        run: curl -f http://localhost:3003/health
+
+      - name: Test Recommendation service
+        run: curl -f http://localhost:8000/health
+
+      - name: Setup Python for DVC
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install DVC
+        run: pip install dvc
+
+      - name: Run DVC pipeline
+        run: dvc repro
+
+      - name: Show metrics
+        run: dvc metrics show
+
+      - name: Stop services
+        if: always()
+        run: docker-compose --profile dev down
