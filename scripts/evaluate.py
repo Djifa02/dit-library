@@ -10,8 +10,8 @@ def evaluate():
     df = pd.read_csv('data/loans_clean.csv')
 
     # Split train/test
-    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
-
+    train_df, test_df = train_test_split(df, test_size=0.2, random_state=99)
+    
     # Reconstruire la matrice sur le train uniquement
     user_book_matrix = train_df.pivot_table(
         index='user_id',

@@ -22,7 +22,7 @@ def train():
     matrix_sparse = csr_matrix(user_book_matrix.values)
 
     # Entrainement KNN
-    model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=3)
+    model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
     model.fit(matrix_sparse)
 
     model_data = {
