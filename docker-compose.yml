@@ -1,0 +1,246 @@
+networks:
+  dit-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  model_data:
+  training_data:
+
+services:
+  # ─── DATABASE ───────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: dit-db
+    environment:
+      POSTGRES_USER: dituser
+      POSTGRES_PASSWORD: ditpass
+      POSTGRES_DB: ditlibrary
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - dit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dituser -d ditlibrary"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── SERVICE LIVRES ─────────────────────────────────────────
+  books:
+    build:
+      context: ./services/books
+      dockerfile: Dockerfile
+    container_name: dit-books
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+  books-dev:
+    build:
+      context: ./services/books
+      dockerfile: Dockerfile.dev
+    container_name: dit-books-dev
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/books:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - dev
+
+  # ─── SERVICE UTILISATEURS ───────────────────────────────────
+  users:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile
+    container_name: dit-users
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3002
+    ports:
+      - "3002:3002"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+  users-dev:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile.dev
+    container_name: dit-users-dev
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3002
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./services/users:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - dev
+
+  # ─── SERVICE EMPRUNTS ───────────────────────────────────────
+  loans:
+    build:
+      context: ./services/loans
+      dockerfile: Dockerfile
+    container_name: dit-loans
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3003
+      BOOKS_SERVICE_URL: http://books:3001
+      USERS_SERVICE_URL: http://users:3002
+    ports:
+      - "3003:3003"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+  loans-dev:
+    build:
+      context: ./services/loans
+      dockerfile: Dockerfile.dev
+    container_name: dit-loans-dev
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 3003
+      BOOKS_SERVICE_URL: http://books-dev:3001
+      USERS_SERVICE_URL: http://users-dev:3002
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./services/loans:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    profiles:
+      - dev
+
+  # ─── SERVICE RECOMMANDATION ─────────────────────────────────
+  recommendation:
+    build:
+      context: ./services/recommendation
+      dockerfile: Dockerfile
+    container_name: dit-recommendation
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dituser
+      DB_PASSWORD: ditpass
+      DB_NAME: ditlibrary
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - model_data:/app/model
+      - training_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dit-network
+    restart: unless-stopped
+
+  # ─── FRONTEND ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dit-frontend
+    environment:
+      REACT_APP_BOOKS_API: http://localhost:3001
+      REACT_APP_USERS_API: http://localhost:3002
+      REACT_APP_LOANS_API: http://localhost:3003
+      REACT_APP_RECO_API: http://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      - books
+    networks:
+      - dit-network
+    profiles:
+      - prod
+
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: dit-frontend-dev
+    environment:
+      REACT_APP_BOOKS_API: http://localhost:3001
+      REACT_APP_USERS_API: http://localhost:3002
+      REACT_APP_LOANS_API: http://localhost:3003
+      REACT_APP_RECO_API: http://localhost:8000
+    ports:
+      - "3006:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - dit-network
+    profiles:
+      - dev

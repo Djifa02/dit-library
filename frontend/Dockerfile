@@ -1,12 +1,10 @@
-FROM node:18-alpine AS builder
+FROM node:18-alpine
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=builder /app/build /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+RUN npm install
+RUN chown -R appuser:appgroup /app
+USER appuser
+EXPOSE 3000
+ENV HOST=0.0.0.0
+CMD ["npm", "start"]
