@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.model_selection import train_test_split
 from scipy.sparse import csr_matrix
 import psycopg2
 from dotenv import load_dotenv
@@ -38,8 +39,11 @@ def train_model():
     if df.empty:
         raise ValueError("Pas assez de donnees pour entrainer le modele")
 
-    # Matrice user-book
-    user_book_matrix = df.pivot_table(
+    # Split train/test
+    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+
+    # Matrice user-book sur train uniquement
+    user_book_matrix = train_df.pivot_table(
         index='user_id',
         columns='book_id',
         values='rating',
@@ -52,25 +56,39 @@ def train_model():
     model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
     model.fit(matrix_sparse)
 
-    # Calcul des metriques
+    # Calcul des metriques sur test
     predictions = []
     actuals = []
-    for _, row in df.iterrows():
-        if row['user_id'] in user_book_matrix.index:
-            user_idx = user_book_matrix.index.get_loc(row['user_id'])
-            pred = user_book_matrix.iloc[user_idx][row['book_id']] if row['book_id'] in user_book_matrix.columns else 0
+    for _, row in test_df.iterrows():
+        user_id = row['user_id']
+        book_id = row['book_id']
+        actual = row['rating']
+
+        if user_id in user_book_matrix.index and book_id in user_book_matrix.columns:
+            book_ratings = user_book_matrix[book_id]
+            non_zero = book_ratings[book_ratings > 0]
+            pred = non_zero.mean() if len(non_zero) > 0 else 3.0
             predictions.append(pred)
-            actuals.append(row['rating'])
+            actuals.append(actual)
 
     rmse = float(np.sqrt(mean_squared_error(actuals, predictions))) if actuals else 0.0
     mae = float(mean_absolute_error(actuals, predictions)) if actuals else 0.0
 
-    # Sauvegarde
+    # Sauvegarde avec toute la matrice pour les recommandations
+    full_matrix = df.pivot_table(
+        index='user_id',
+        columns='book_id',
+        values='rating',
+        fill_value=0
+    )
+    full_sparse = csr_matrix(full_matrix.values)
+    model.fit(full_sparse)
+
     model_data = {
         'model': model,
-        'user_book_matrix': user_book_matrix,
-        'user_ids': list(user_book_matrix.index),
-        'book_ids': list(user_book_matrix.columns)
+        'user_book_matrix': full_matrix,
+        'user_ids': list(full_matrix.index),
+        'book_ids': list(full_matrix.columns)
     }
 
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
@@ -87,7 +105,6 @@ def get_recommendations(user_id: int, n_recommendations: int = 5):
     user_book_matrix = model_data['user_book_matrix']
 
     if user_id not in user_book_matrix.index:
-        # Retourner les livres les plus populaires
         df = load_data()
         popular = df.groupby('book_id')['rating'].mean().sort_values(ascending=False)
         return list(popular.head(n_recommendations).index)
@@ -97,7 +114,6 @@ def get_recommendations(user_id: int, n_recommendations: int = 5):
 
     distances, indices = model.kneighbors(user_vector, n_neighbors=min(6, len(user_book_matrix)))
 
-    # Livres deja empruntes par l'utilisateur
     already_borrowed = set(user_book_matrix.columns[user_book_matrix.iloc[user_idx] > 0])
 
     recommended_books = []
@@ -115,4 +131,3 @@ def get_recommendations(user_id: int, n_recommendations: int = 5):
 
 def is_model_loaded():
     return os.path.exists(MODEL_PATH)
-
