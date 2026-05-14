@@ -37,8 +37,8 @@ stages:
       size: 12464
     - path: scripts/evaluate.py
       hash: md5
-      md5: 0063adb8ac7fc774d503bccf223110de
-      size: 1974
+      md5: 85062fa63eac3224076f0453a1981d16
+      size: 1978
     - path: services/recommendation/model/model.pkl
       hash: md5
       md5: 61ada0c06734c7663634deb17639ecfc
@@ -46,5 +46,5 @@ stages:
     outs:
     - path: data/metrics.json
       hash: md5
-      md5: 59392b48c09dcb2ca9dafed786485fd1
-      size: 102
+      md5: 96f34c251e2cedb8097f4a093d4cedbf
+      size: 103
